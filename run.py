@@ -101,7 +101,6 @@ if __name__ == "__main__":
     # IMPORTANTE:
     # Nodos del grafo de Rumanía son letras:
     # A,B,C,D,E,F,G,H,I,L,M,N,O,P,R,S,T,U,V,Z
-    # Si tu enunciado usa nombres completos, aquí debes mapearlos a letras.
 
     for (cid, ori, dst) in casos:
         ejecutar_caso(cid, ori, dst)
