@@ -1,141 +1,111 @@
-# Search methods y comparación de estrategias sobre el grafo de Rumanía
+
 
 import time
 import search
 
 
-def imprimir_ruta_y_coste(nodo, titulo):
-    """Imprime la ruta (lista de nodos) y el coste total de un nodo solución."""
+
+def _ruta_formato(nodo):
+    """Devuelve la ruta como lista de repr(Node) desde objetivo -> ... -> inicial,
+    : [<Node B>, <Node P>, ...]
+    """
     if nodo is None:
-        print(f"{titulo}: SIN SOLUCIÓN")
-        return
-
-    ruta_nodos = nodo.path()              # [objetivo, ..., inicial]
-    ruta_estados = list(reversed([n.state for n in ruta_nodos]))
-    print(f"{titulo}: {ruta_estados} | coste = {nodo.path_cost}")
+        return "SIN SOLUCIÓN"
+    # nodo.path() devuelve [objetivo, ..., inicial]
+    return "[" + ", ".join(repr(n) for n in nodo.path()) + "]"
 
 
-def ejecutar_estrategia(nombre, funcion, problema, **kwargs):
-    """Ejecuta una estrategia de búsqueda y devuelve un diccionario con resultados."""
-    t0 = time.time()
+def _ejecutar_y_medir(funcion, problema, **kwargs):
+    """Ejecuta una búsqueda, mide tiempo, y devuelve (nodo_sol, metrics, tiempo)."""
+    t0 = time.perf_counter()
     nodo_sol = funcion(problema, **kwargs) if kwargs else funcion(problema)
-    t1 = time.time()
-
+    t1 = time.perf_counter()
     metrics = search.get_last_search_metrics()
+    return nodo_sol, metrics, (t1 - t0)
 
+
+def _imprimir_columna(nombre_columna, nodo_sol, metrics, tiempo):
+    """Imprime una 'columna' ."""
     if nodo_sol is None:
-        ruta_estados = "SIN SOLUCIÓN"
-        coste = None
+        coste = "-"
+        ruta = "SIN SOLUCIÓN"
     else:
-        ruta_estados = " -> ".join(n.state for n in reversed(nodo_sol.path()))
-        coste = nodo_sol.path_cost
+        coste = str(nodo_sol.path_cost)
+        ruta = _ruta_formato(nodo_sol)
 
-    return {
-        "estrategia": nombre,
-        "ruta": ruta_estados,
-        "coste": coste,
-        "nodos_generados": metrics["nodes_generated"],
-        "nodos_visitados": metrics["nodes_visited"],
-        "tiempo": t1 - t0,
-        "nodo": nodo_sol,
-    }
+    print(f"--- COLUMNA: {nombre_columna} ---")
+    print(f"Generados: {metrics['nodes_generated']}")
+    print(f"Visitados: {metrics['nodes_visited']}")
+    print(f"Costo total: {coste}")
+    print(f"Tiempo: {tiempo:.6f} s")
+    print(f"Ruta: {ruta}")
+    print("")
 
 
-def imprimir_tabla(resultados):
-    """Imprime los resultados de varias estrategias en una tabla sencilla."""
-    print("\nTabla comparativa de estrategias\n")
-    print("{:<32} {:>6} {:>6} {:>8} {:>10}   {}".format(
-        "Estrategia", "Gen", "Vis", "Coste", "Tiempo(s)", "Ruta"))
-    print("-" * 100)
-    for r in resultados:
-        coste_str = "-" if r["coste"] is None else str(r["coste"])
-        print("{:<32} {:>6} {:>6} {:>8} {:>10.6f}   {}".format(
-            r["estrategia"],
-            r["nodos_generados"],
-            r["nodos_visitados"],
-            coste_str,
-            r["tiempo"],
-            r["ruta"],
-        ))
+def ejecutar_caso(case_id, origen, destino):
+    """Ejecuta BFS/DFS/BB/A* para un par (origen -> destino) y lo imprime."""
+    print("#" * 80)
+    print(f"ID {case_id}: {origen} -> {destino}")
+    print("#" * 80)
+    print("")
+
+    # ---------- BFS ----------
+    problema = search.GPSProblem(origen, destino, search.romania)
+    nodo, metrics, tiempo = _ejecutar_y_medir(search.breadth_first_graph_search, problema)
+    _imprimir_columna("Amplitud", nodo, metrics, tiempo)
+
+    # ---------- DFS ----------
+    problema = search.GPSProblem(origen, destino, search.romania)
+    nodo, metrics, tiempo = _ejecutar_y_medir(search.depth_first_graph_search, problema)
+    _imprimir_columna("Profundidad", nodo, metrics, tiempo)
+
+    # ---------- Branch & Bound ----------
+    # return_on_goal=True para el formato típico de tabla (devuelve al hallar solución óptima)
+    problema = search.GPSProblem(origen, destino, search.romania)
+    nodo, metrics, tiempo = _ejecutar_y_medir(
+        search.branch_and_bound_search,
+        problema,
+        debug=False,
+        debug_max_iterations=5,
+        return_on_goal=True
+    )
+    _imprimir_columna("Ramificación y Acotación", nodo, metrics, tiempo)
+
+    # ---------- A* (Ramif. con Subestimación) ----------
+    problema = search.GPSProblem(origen, destino, search.romania)
+    nodo, metrics, tiempo = _ejecutar_y_medir(
+        search.branch_and_bound_subestimation_search,
+        problema,
+        debug=False,
+        debug_max_iterations=5,
+        return_on_goal=True
+    )
+    _imprimir_columna("Ramif. con Subestimación (A*)", nodo, metrics, tiempo)
+
 
 
 if __name__ == "__main__":
-    # Problema de ejemplo: A -> B en el grafo de Rumanía
-    ab = search.GPSProblem('A', 'B', search.romania)
+    print("=" * 80)
+    print("PARTE OBLIGATORIA: DATOS PARA LA TABLA")
+    print("=" * 80)
+    print("")
 
-    # -------------------------------------------------------------------------
-    # Comportamiento original del run.py (BFS y DFS) para que no cambie nada
-    # -------------------------------------------------------------------------
+    casos = [
+        (1, "A", "B"),   # Arad -> Bucharest 
+        (2, "O", "E"),   # Oradea -> Eforie
+        (3, "G", "Z"),   # Giurgiu -> Zerind
+        (4, "N", "D"),   # Neamt -> Dobreta
+        (5, "M", "F"),   # Mehadia -> Fagaras
+    ]
 
-    print("=== Búsqueda en anchura (BFS) ===")
-    bfs_node = search.breadth_first_graph_search(ab)
-    imprimir_ruta_y_coste(bfs_node, "BFS")
+    # IMPORTANTE:
+    # Nodos del grafo de Rumanía son letras:
+    # A,B,C,D,E,F,G,H,I,L,M,N,O,P,R,S,T,U,V,Z
+    # Si tu enunciado usa nombres completos, aquí debes mapearlos a letras.
 
-    print("\n=== Búsqueda en profundidad (DFS) ===")
-    dfs_node = search.depth_first_graph_search(ab)
-    imprimir_ruta_y_coste(dfs_node, "DFS")
+    for (cid, ori, dst) in casos:
+        ejecutar_caso(cid, ori, dst)
 
-    # Comentario original del enunciado:
-    # Result:
-    # [<Node B>, <Node P>, <Node R>, <Node S>, <Node A>] : 101 + 97 + 80 + 140 = 418
-    # [<Node B>, <Node F>, <Node S>, <Node A>] : 211 + 99 + 140 = 450
-
-    # -------------------------------------------------------------------------
-    # Nuevas estrategias: Ramificación y Acotación
-    # -------------------------------------------------------------------------
-
-    print("\n=== Ramificación y Acotación (sin heurística) ===")
-    bb_node = search.branch_and_bound_search(ab, debug=True, debug_max_iterations=5)
-    imprimir_ruta_y_coste(bb_node, "Branch & Bound")
-
-    print("\n=== Ramificación y Acotación con subestimación (heurística euclídea) ===")
-    bb_h_node = search.branch_and_bound_subestimation_search(
-        ab, debug=True, debug_max_iterations=5
-    )
-    imprimir_ruta_y_coste(bb_h_node, "Branch & Bound + h")
-
-    # -------------------------------------------------------------------------
-    # Tabla comparativa usando todas las estrategias
-    # -------------------------------------------------------------------------
-
-    print("\n\n=== Comparación global de estrategias para A -> B ===")
-
-    resultados = []
-
-    # BFS
-    ab = search.GPSProblem('A', 'B', search.romania)
-    resultados.append(ejecutar_estrategia(
-        "Búsqueda en anchura (BFS)",
-        search.breadth_first_graph_search,
-        ab
-    ))
-
-    # DFS
-    ab = search.GPSProblem('A', 'B', search.romania)
-    resultados.append(ejecutar_estrategia(
-        "Búsqueda en profundidad (DFS)",
-        search.depth_first_graph_search,
-        ab
-    ))
-
-    # Branch & Bound
-    ab = search.GPSProblem('A', 'B', search.romania)
-    resultados.append(ejecutar_estrategia(
-        "Ramificación y Acotación",
-        search.branch_and_bound_search,
-        ab,
-        debug=False,
-        debug_max_iterations=5
-    ))
-
-    # Branch & Bound + heurística
-    ab = search.GPSProblem('A', 'B', search.romania)
-    resultados.append(ejecutar_estrategia(
-        "Ramificación y Acotación + heurística",
-        search.branch_and_bound_subestimation_search,
-        ab,
-        debug=False,
-        debug_max_iterations=5
-    ))
-
-    imprimir_tabla(resultados)
+    print("=" * 80)
+    print("FIN DE LA EJECUCIÓN GLOBAL")
+    print("=" * 80)

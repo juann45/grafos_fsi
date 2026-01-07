@@ -12,6 +12,10 @@ from functools import reduce
 
 infinity = 1.0e400
 
+def abstract():
+    """Lanza un error para métodos abstractos."""
+    raise NotImplementedError("Método abstracto: debe implementarse en la subclase")
+
 
 def Dict(**entries):
     """Create a dict out of the argument=value arguments.
@@ -524,7 +528,7 @@ class Queue:
     as lists.  If Python ever gets interfaces, Queue will be an interface."""
 
     def __init__(self):
-        abstract
+        abstract()
 
     def extend(self, items):
         for item in items:

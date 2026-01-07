@@ -1,8 +1,16 @@
-"""Search (Chapters 3-4)
+"""
+Search (Chapters 3-4)
 
 The way to use this code is to subclass Problem to create a class of problems,
 then create problem instances and solve them with calls to the various search
-functions."""
+functions.
+
+Extensión (Práctica):
+- Añadida Ramificación y Acotación (Branch & Bound) y B&B con Subestimación (A*).
+- Añadida contabilidad: nodos generados y nodos visitados.
+- Mejorada compatibilidad con IDE (Pylance): abstract() en lugar de "abstract".
+- Mantiene el código original y lo amplía (no se elimina funcionalidad).
+"""
 
 from utils import *
 import random
@@ -15,15 +23,14 @@ import heapq  # Necesario para la cola de prioridad
 
 
 class Problem:
-    """The abstract class for a formal problem.  You should subclass this and
-    implement the method successor, and possibly __init__, goal_test, and
-    path_cost. Then you will create instances of your subclass and solve them
-    with the various search functions."""
+    """The abstract class for a formal problem.
+
+    You should subclass this and implement the method successor, and possibly
+    __init__, goal_test, and path_cost.
+    """
 
     def __init__(self, initial, goal=None):
-        """The constructor specifies the initial state, and possibly a goal
-        state, if there is a unique goal.  Your subclass's constructor can add
-        other arguments."""
+        """The constructor specifies the initial state, and possibly a goal state."""
         self.initial = initial
         self.goal = goal
 
@@ -31,38 +38,25 @@ class Problem:
         """Given a state, return a sequence of (action, state) pairs reachable
         from this state. If there are many successors, consider an iterator
         that yields the successors one at a time, rather than building them
-        all at once. Iterators will work fine within the framework."""
-        abstract
+        all at once. Iterators will work fine within the framework.
+        """
+        abstract()  
 
     def goal_test(self, state):
-        """Return True if the state is a goal. The default method compares the
-        state to self.goal, as specified in the constructor. Implement this
-        method if checking against a single self.goal is not enough."""
+        """Return True if the state is a goal."""
         return state == self.goal
 
     def path_cost(self, c, state1, action, state2):
-        """Return the cost of a solution path that arrives at state2 from
-        state1 via action, assuming cost c to get up to state1. If the problem
-        is such that the path doesn't matter, this function will only look at
-        state2.  If the path does matter, it will consider c and maybe state1
-        and action. The default method costs 1 for every step in the path."""
+        """Return the cost of a solution path that arrives at state2 from state1."""
         return c + 1
 
     def value(self):
-        """For optimization problems, each state has a value.  Hill-climbing
-        and related algorithms try to maximize this value."""
-        abstract
+        """For optimization problems, each state has a value."""
+        abstract()  
 
 
 class Node:
-    """A node in a search tree. Contains a pointer to the parent (the node
-    that this is a successor of) and to the actual state for this node. Note
-    that if a state is arrived at by two paths, then there are two nodes with
-    the same state.  Also includes the action that got us to this state, and
-    the total path_cost (also known as g) to reach the node.  Other functions
-    may add an f and h value; see best_first_graph_search and astar_search for
-    an explanation of how the f and h values are handled. You will not need to
-    subclass this class."""
+    """A node in a search tree."""
 
     def __init__(self, state, parent=None, action=None, path_cost=0):
         """Create a search tree Node, derived from a parent by an action."""
@@ -133,14 +127,7 @@ _last_search_metrics = {
 
 
 def reset_search_metrics(algorithm_name):
-    """Reinicia los contadores para una nueva ejecución de búsqueda.
-
-    Esta función debe llamarse al inicio de cada algoritmo de búsqueda para
-    registrar correctamente:
-      - el nombre de la estrategia,
-      - el número de nodos generados,
-      - el número de nodos visitados.
-    """
+    """Reinicia los contadores para una nueva ejecución de búsqueda."""
     global _last_search_metrics
     _last_search_metrics = {
         "algorithm": algorithm_name,
@@ -160,13 +147,7 @@ def _count_visited():
 
 
 def get_last_search_metrics():
-    """Devuelve una copia de las métricas de la última búsqueda.
-
-    Claves:
-        - 'algorithm': nombre de la estrategia utilizada.
-        - 'nodes_generated': nodos creados (Node(...)).
-        - 'nodes_visited': nodos extraídos de la frontera y evaluados.
-    """
+    """Devuelve una copia de las métricas de la última búsqueda."""
     return dict(_last_search_metrics)
 
 
@@ -223,9 +204,18 @@ def depth_first_graph_search(problem):
 
 # ______________________________________________________________________________
 # Ramificación y Acotación (Branch & Bound) - Parte 1
+#
+# NOTA IMPORTANTE (TABLA):
+# - Para el formato esperado en la tabla, normalmente se "devuelve" cuando se
+#   encuentra la primera solución óptima que sale de la frontera por prioridad.
+# - Para mantener el comportamiento original (seguir buscando mejoras),
+#   existe el parámetro `return_on_goal`.
+#
+# return_on_goal=True  -> comportamiento ideal para tabla (para al encontrar objetivo prometedor)
+# return_on_goal=False -> comportamiento original (sigue explorando por si hay mejor solución)
 
 
-def branch_and_bound_search(problem, debug=False, debug_max_iterations=5):
+def branch_and_bound_search(problem, debug=False, debug_max_iterations=5, return_on_goal=True):
     """Estrategia de búsqueda de Ramificación y Acotación SIN heurística.
 
     Características:
@@ -238,10 +228,11 @@ def branch_and_bound_search(problem, debug=False, debug_max_iterations=5):
 
     Parámetros:
         problem: instancia de Problem (p.ej. GPSProblem sobre el grafo de Rumanía)
-        debug (bool): si es True, se muestran por pantalla las primeras
-            iteraciones indicando el nodo expandido, sus sucesores y costes.
-        debug_max_iterations (int): número máximo de iteraciones que se
-            mostrarán por pantalla cuando debug=True.
+        debug (bool): si es True, se muestran por pantalla las primeras iteraciones.
+        debug_max_iterations (int): número máximo de iteraciones a imprimir.
+        return_on_goal (bool):
+            - True: devuelve al encontrar una solución (modo tabla / práctica).
+            - False: sigue explorando para garantizar "mejor de todas" aunque cueste más.
     """
     reset_search_metrics("branch_and_bound_search")
 
@@ -278,13 +269,17 @@ def branch_and_bound_search(problem, debug=False, debug_max_iterations=5):
                 best_cost = node.path_cost
                 if debug and iteration <= debug_max_iterations:
                     print(f"  -> NUEVA mejor solución encontrada con coste {best_cost}")
-            # No devolvemos inmediatamente: seguimos por si existe una solución aún mejor
+
+            # MODO TABLA: devolvemos aquí para que cuadren contadores típicos
+            if return_on_goal:
+                return best_solution
+
+            # MODO ORIGINAL: seguimos por si existe una solución aún mejor
             continue
 
         # ¿Merece la pena expandir este estado?
         previous_best = closed.get(node.state, infinity)
         if node.path_cost >= previous_best:
-            # Ya hemos llegado antes a este estado con un coste menor
             if debug and iteration <= debug_max_iterations:
                 print(f"  -> No se expande {node} (existe camino mejor con coste {previous_best})")
             continue
@@ -308,21 +303,24 @@ def branch_and_bound_search(problem, debug=False, debug_max_iterations=5):
 
 # ______________________________________________________________________________
 # Ramificación y Acotación con Subestimación (heurística euclídea) - Parte 2
+#
 
 
-def branch_and_bound_subestimation_search(problem, debug=False, debug_max_iterations=5):
+
+def branch_and_bound_subestimation_search(problem, debug=False, debug_max_iterations=5, return_on_goal=True):
     """Estrategia de Ramificación y Acotación con Subestimación (tipo A*).
 
-    La prioridad de cada nodo viene dada por:
-
+    Prioridad:
         f(n) = g(n) + h(n)
 
     donde:
         - g(n) = node.path_cost
         - h(n) = heurística (en GPSProblem se calcula como distancia euclídea)
 
-    La heurística se obtiene llamando a ``problem.h(node)`` si existe;
-    en caso contrario se asume h(n) = 0.
+    Parámetros extra:
+        return_on_goal (bool):
+            - True: devuelve al encontrar solución (modo tabla).
+            - False: sigue explorando por si mejora (modo original extendido).
     """
     reset_search_metrics("branch_and_bound_subestimation_search")
 
@@ -373,6 +371,12 @@ def branch_and_bound_subestimation_search(problem, debug=False, debug_max_iterat
                 best_cost = node.path_cost
                 if debug and iteration <= debug_max_iterations:
                     print(f"  -> NUEVA mejor solución encontrada con coste {best_cost}")
+
+            # MODO TABLA
+            if return_on_goal:
+                return best_solution
+
+            # MODO ORIGINAL
             continue
 
         previous_best = closed.get(node.state, infinity)
@@ -392,7 +396,6 @@ def branch_and_bound_subestimation_search(problem, debug=False, debug_max_iterat
                       f"h={heuristic(child)}, f={f(child)}")
 
         for child in children:
-            # Solo tiene sentido añadir si su cota heurística es prometedora
             if f(child) < best_cost:
                 fringe.append(child)
 
@@ -401,24 +404,12 @@ def branch_and_bound_subestimation_search(problem, debug=False, debug_max_iterat
 
 # _____________________________________________________________________________
 # The remainder of this file implements examples for the search algorithms.
-
 # ______________________________________________________________________________
 # Graphs and Graph Problems
 
 
 class Graph:
-    """A graph connects nodes (vertices) by edges (links).  Each edge can also
-    have a length associated with it.  The constructor call is something like:
-        g = Graph({'A': {'B': 1, 'C': 2})
-    this makes a graph with 3 nodes, A, B, and C, with an edge of length 1 from
-    A to B,  and an edge of length 2 from A to C.  You can also do:
-        g = Graph({'A': {'B': 1, 'C': 2}, directed=False)
-    This makes an undirected graph, so inverse links are also added. The graph
-    stays undirected; if you add more links with g.connect('B', 'C', 3), then
-    inverse link is also added.  You can use g.nodes() to get a list of nodes,
-    g.get('A') to get a dict of links out of A, and g.get('A', 'B') to get the
-    length of the link from A to B.  'Lengths' can actually be any object at
-    all, and nodes can be any hashable object."""
+    """A graph connects nodes (vertices) by edges (links)."""
 
     def __init__(self, dict=None, directed=True):
         self.dict = dict or {}
@@ -444,9 +435,7 @@ class Graph:
         self.dict.setdefault(A, {})[B] = distance
 
     def get(self, a, b=None):
-        """Return a link distance or a dict of {node: distance} entries.
-        .get(a,b) returns the distance or None;
-        .get(a) returns a dict of {node: distance} entries, possibly {}."""
+        """Return a link distance or a dict of {node: distance} entries."""
         links = self.dict.setdefault(a, {})
         if b is None:
             return links
@@ -465,18 +454,11 @@ def UndirectedGraph(dict=None):
 
 def RandomGraph(nodes=list(range(10)), min_links=2, width=400, height=300,
                 curvature=lambda: random.uniform(1.1, 1.5)):
-    """Construct a random graph, with the specified nodes, and random links.
-    The nodes are laid out randomly on a (width x height) rectangle.
-    Then each node is connected to the min_links nearest neighbors.
-    Because inverse links are added, some nodes will have more connections.
-    The distance between nodes is the hypotenuse times curvature(),
-    where curvature() defaults to a random number between 1.1 and 1.5."""
+    """Construct a random graph, with the specified nodes, and random links."""
     g = UndirectedGraph()
     g.locations = {}
-    # Build the cities
     for node in nodes:
         g.locations[node] = (random.randrange(width), random.randrange(height))
-    # Build roads from each city to at least min_links nearest neighbors.
     for i in range(min_links):
         for node in nodes:
             if len(g.get(node)) < min_links:
@@ -506,21 +488,26 @@ romania = UndirectedGraph(Dict(
     O=Dict(Z=71, S=151),
     P=Dict(R=97),
     R=Dict(S=80),
-    U=Dict(V=142)))
+    U=Dict(V=142)
+))
 romania.locations = Dict(
     A=(91, 492), B=(400, 327), C=(253, 288), D=(165, 299),
     E=(562, 293), F=(305, 449), G=(375, 270), H=(534, 350),
     I=(473, 506), L=(165, 379), M=(168, 339), N=(406, 537),
     O=(131, 571), P=(320, 368), R=(233, 410), S=(207, 457),
-    T=(94, 410), U=(456, 350), V=(509, 444), Z=(108, 531))
+    T=(94, 410), U=(456, 350), V=(509, 444), Z=(108, 531)
+)
 
 australia = UndirectedGraph(Dict(
     T=Dict(),
     SA=Dict(WA=1, NT=1, Q=1, NSW=1, V=1),
     NT=Dict(WA=1, Q=1),
-    NSW=Dict(Q=1, V=1)))
-australia.locations = Dict(WA=(120, 24), NT=(135, 20), SA=(135, 30),
-                           Q=(145, 20), NSW=(145, 32), T=(145, 42), V=(145, 37))
+    NSW=Dict(Q=1, V=1)
+))
+australia.locations = Dict(
+    WA=(120, 24), NT=(135, 20), SA=(135, 30),
+    Q=(145, 20), NSW=(145, 32), T=(145, 42), V=(145, 37)
+)
 
 
 class GPSProblem(Problem):
